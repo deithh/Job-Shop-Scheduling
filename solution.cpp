@@ -53,21 +53,21 @@ int main(int argc, char** argv) //format [O | T] file [path] truncate [int] k[in
 {
     int duration, k;
     srand(time(NULL));
-    if(argc == 4){
+    if (argc == 4) {
         k = K;
         duration = DURATION;
     }
-    else{
+    else {
         k = stoi(argv[4]);
         duration = stoi(argv[5]);
     }
-    
+
     long long int cutoff = strtoll(argv[3], NULL, 10);
     string fileName = argv[2];
     string format = argv[1];
-    
 
-    TIME_MAX_NS = std::chrono::seconds{duration};
+
+    TIME_MAX_NS = std::chrono::seconds{ duration };
 
 
     if (cutoff >= -1 && !fileName.empty() && fileName.substr(fileName.length() - 4) == ".txt" && (format == "O" || format == "T") && k >= 1)
@@ -205,6 +205,9 @@ vector<vector<vector<int>>> readFormatT(fstream& file, int cutoff) {
         }
         tasks.push_back(jobs);
     }
+    for (int i = 0; i < JOBS - cutoff; i++) {
+        getline(file, line);
+    }
 
     getline(file, line);//skip line
 
@@ -222,11 +225,11 @@ vector<vector<vector<int>>> readFormatT(fstream& file, int cutoff) {
 }
 
 
-void parseData(vector<vector<vector<int>>>& data) { 
+void parseData(vector<vector<vector<int>>>& data) {
     int taskIter = 0;
-    for (auto &tasks : data) {
+    for (auto& tasks : data) {
         int iter = 0;
-        for (auto &job : tasks) {
+        for (auto& job : tasks) {
             job.push_back(taskIter);
             job.push_back(iter);
             iter++;
@@ -244,7 +247,7 @@ vector<vector<int>> grasp(vector<vector<vector<int>>> data) {
 
     while (true) {
         vector<int> candidate = choseCandidate(data, availabilityMachines, availabilityTasks);
-        if (candidate == vector<int>(1,-1)) {
+        if (candidate == vector<int>(1, -1)) {
             break;
         }
         updateSolution(solution, availabilityMachines, availabilityTasks, candidate);
@@ -272,12 +275,12 @@ vector<int> choseCandidate(vector<vector<vector<int>>>& data, vector<int> availa
             additionalTime = max(0, additionalTime);
             temp.push_back(additionalTime);
             candidates.push_back(temp);
-       }
+        }
 
     }
 
     if (candidates.size() == 0) {
-        return vector<int>(1,-1);
+        return vector<int>(1, -1);
     }
 
     sort(candidates.begin(), candidates.end(), compAddTime);
