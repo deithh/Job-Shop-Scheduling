@@ -19,7 +19,8 @@ int MACHINES = -1;
 int JOBS = -1;
 int CUTOFF = -1;
 int DURATION = 9;
-int K = 7;
+bool DEBUG = 0;
+int K=1;
 chrono::duration<long long, nano> TIME_MAX_NS;
 
 vector<string> splitStringBySpaces(const string& s);
@@ -28,8 +29,7 @@ vector<vector<vector<int>>> readFile(string format, string fileName, int cutoff)
 vector<vector<vector<int>>> readFormatO(fstream& file, int cutoff);
 vector<vector<vector<int>>> readFormatT(fstream& file, int cutoff);
 void parseData(vector<vector<vector<int>>>& data);
-vector<int> grasp(vector<vector<vector<int>>> data);
-vector<int> choseCandidate(vector<vector<vector<int>>>& data, vector<int> availabilityMachines, vector<int> availabilityTasks);
+vector<int> initSubject(vector<vector<vector<int>>> data);
 vector<vector<int>> runGrasp(vector<vector<vector<int>>>& data);
 void repr(vector<vector<int>> solution);
 void updateSolution(vector<vector<int>>& solution, vector<int>& availabilityMachines, vector<int>& availabilityTasks, vector<int>& candidate);
@@ -38,11 +38,10 @@ vector<vector<int>> buildSolution(vector<vector<vector<int>>> data, vector<int> 
 int evalFenotype(vector<vector<vector<int>>> data, vector<int> queue);
 vector<int> repair(vector<int>& chromosome, int tasks, int jobs);
 void mutate(vector<int>& genotype);
-pair<vector<int>, vector<int>> crossover(vector<int> mother, vector<int> father);
+vector<int> crossover(vector<int> mother, vector<int> father);
 void GA(vector<vector<vector<int>>> data);
-void _GA(vector<vector<vector<int>>> data, vector<vector<int>>& population, vector<vector<int>>& hallOfFame, int reproduction, int mutationChance, int maxElitar);
+void _GA(vector<vector<vector<int>>> data, vector<pair<vector<int>, int>>& population, vector<pair<vector<int>, int>>& hallOfFame);
 bool compMakeSpan(pair<vector<int>, int>& a, pair<vector<int>, int>& b);
-int fiit(int best, int fenotype);
 vector<int> roulette(int n, vector<pair<vector<int>, int>> population);
 
 
@@ -240,7 +239,6 @@ vector<vector<vector<int>>> readFormatT(fstream& file, int cutoff) {
     return tasks;
 }
 
-
 void parseData(vector<vector<vector<int>>>& data) {
     int taskIter = 0;
     for (auto& tasks : data) {
@@ -255,61 +253,15 @@ void parseData(vector<vector<vector<int>>>& data) {
     }
 }
 
-vector<int> grasp(vector<vector<vector<int>>> data) {
-    vector<vector<int>> solution(CUTOFF, vector<int>(MACHINES, 0));
-    vector<int> availabilityMachines(MACHINES, 0);
-    vector<int> availabilityTasks(CUTOFF, 0);
+vector<int> initSubject(vector<vector<vector<int>>> data) {
     vector<int> queue;
 
-    while (true) {
-        vector<int> candidate = choseCandidate(data, availabilityMachines, availabilityTasks);
-        if (candidate == vector<int>(1, -1)) {
-            break;
-        }
-        queue.push_back(candidate[2]);
-        updateSolution(solution, availabilityMachines, availabilityTasks, candidate);
+    for (int i=0; i < CUTOFF; i++) {
+        for (int j = 0; j < MACHINES; j++)
+            queue.push_back(i);
     }
-
-    int time = max(*max_element(availabilityMachines.begin(), availabilityMachines.end()),
-        *max_element(availabilityTasks.begin(), availabilityTasks.end()));
-    vector<int> temp;
-    temp.push_back(time);
-    solution.push_back(temp);
+    shuffle(queue.begin(), queue.end(), default_random_engine());
     return queue;
-}
-
-vector<int> choseCandidate(vector<vector<vector<int>>>& data, vector<int> availabilityMachines, vector<int> availabilityTasks) {
-    vector<int> whitelist;
-    vector<vector<int>> candidates;
-    int erased = 0;
-
-    for (int i = 0; i < data.size(); i++) {
-        if (data[i].size() > 0) {
-            auto temp = data[i][data[i].size() - 1];
-            int currentTime = max(*max_element(availabilityMachines.begin(), availabilityMachines.end()),
-                *max_element(availabilityTasks.begin(), availabilityTasks.end()));
-            int additionalTime = max(availabilityMachines[temp[0]], availabilityTasks[i]) + temp[1] - currentTime;//time
-            additionalTime = max(0, additionalTime);
-            temp.push_back(additionalTime);
-            candidates.push_back(temp);
-        }
-
-    }
-
-    if (candidates.size() == 0) {
-        return vector<int>(1, -1);
-    }
-
-    sort(candidates.begin(), candidates.end(), compAddTime);
-
-    int choice = rand() % min(K, (int)candidates.size());
-
-
-    auto chosen = candidates[choice];
-    chosen.pop_back();
-    data[chosen[2]].pop_back();
-
-    return chosen;
 }
 
 void updateSolution(vector<vector<int>>& solution, vector<int>& availabilityMachines, vector<int>& availabilityTasks, vector<int>& candidate) {
@@ -347,20 +299,16 @@ int evalFenotype(vector<vector<vector<int>>> data, vector<int> queue) {
     return solution[solution.size() - 1][0];
 }
 
-int fiit(int best, int fenotype) {
-    return best - fenotype;
-}
-
 vector<int> roulette(int n, vector<pair<vector<int>, int>> population) {
     vector<int> choosen;
-    long long int sum = 0;
+    double sum = 0;
     for (auto& i : population) {
-        sum += i.second;
+        sum += 1.0/i.second;
     }
 
     for (int i = 0; i < n; i++) {
-        long long int temp = 0;
-        int random = rand() % sum;
+        double temp = 0;
+        double random = rand() / RAND_MAX * sum;
         for (int j = 0; j < population.size(); j++) {
             temp += population[j].second;
             if (random < temp) {
@@ -373,10 +321,13 @@ vector<int> roulette(int n, vector<pair<vector<int>, int>> population) {
     return choosen;
 }
 
-vector<vector<int>> initPopulation(vector<vector<vector<int>>> data, int size) {
-    vector<vector<int>> population;
+vector<pair<vector<int>, int>> initPopulation(vector<vector<vector<int>>> data, int size) {
+    vector<pair<vector<int>, int>> population;
     for (int i = 0; i < size; i++) {
-        population.push_back(grasp(data));
+        pair<vector<int>, int> One;
+        One.first = initSubject(data);
+        One.second = evalFenotype(data, One.first);
+        population.push_back(One);
     }
     return population;
 }
@@ -424,87 +375,96 @@ void mutate(vector<int>& genotype) {
     iter_swap(genotype.begin() + position, genotype.begin() + nextPosition);
 }
 
-pair<vector<int>, vector<int>> crossover(vector<int> mother, vector<int> father) {
-    pair<vector<int>, vector<int>> childs;
-    vector<int> son, daughter;
-    int cut = rand() % mother.size();
-    for (int i = 0; i < cut; i++) {
-        daughter.push_back(mother[i]);
-        son.push_back(father[i]);
+vector<int> crossover(vector<int> mother, vector<int> father) {
+    vector<int> s1;
+    int cut1 = rand() % mother.size();
+    int cut2 = rand() % mother.size();
+    if (cut2 < cut1) {
+        swap(cut1, cut2);
     }
-    for (int i = cut; i < mother.size(); i++) {
-        daughter.push_back(father[i]);
-        son.push_back(mother[i]);
+    for (int i = 0; i < cut1; i++) {
+        s1.push_back(mother[i]);
     }
-    childs.first = son;
-    childs.second = daughter;
-    return childs;
+    for (int i = cut1; i < cut2; i++) {
+        s1.push_back(father[i]);
+    }
+    for (int i = cut2; i < mother.size(); i++) {
+        s1.push_back(mother[i]);
+    }
+    return s1;
 }
 
+
+int SIZE = 200;
+int REPRODUCTION = 20;
+double MUTATIONCHANCE = .05;
+int MAXELITAR = 5;
+int CHILDS = 65;
+int POSSIBLEMUTATIONS = 1;
+
 void GA(vector<vector<vector<int>>> data) {
-    int SIZE = 100;
-    int REPRODUCTION = 50;
-    double MUTATIONCHANCE = .03;
-    int MAXELITAR = 0;
-    auto population = initPopulation(data, SIZE);
-    vector<vector<int>> hallOfFame;
-    for (int i = 0; i <= 500; i++) {
-        _GA(data, population, hallOfFame, REPRODUCTION, MUTATIONCHANCE, MAXELITAR);
-        printf("%d \n", evalFenotype(data, hallOfFame[i]));
+
+    vector<pair<vector<int>, int>> population = initPopulation(data, SIZE);
+    vector<pair<vector<int>, int>> hallOfFame;
+    for (int i = 1; i <= 500; i++) {
+        _GA(data, population, hallOfFame);
+        if(DEBUG)
+            printf("%d \n", population[0].second);
     }
-    repr(buildSolution(data, hallOfFame[500]));
-
-
+    repr(buildSolution(data, hallOfFame[0].first));
 }
 
 bool compMakeSpan(pair<vector<int>, int>& a, pair<vector<int>, int>& b) {
     return a.second < b.second;
 }
 
-void _GA(vector<vector<vector<int>>> data, vector<vector<int>>& population, vector<vector<int>>& hallOfFame, int reproduction, int mutationChance, int maxElitar) {
-    vector<pair<vector<int>, int>> evaluation;
+void _GA(vector<vector<vector<int>>> data, vector<pair<vector<int>, int>>& population, vector<pair<vector<int>, int>>& hallOfFame) {
     vector<vector<int>> toReproduction;
 
-    for (auto& genotype : population) {
-        auto eval = pair<vector<int>, int>(genotype, evalFenotype(data, genotype));
-        evaluation.push_back(eval);
-    }
-    //include best of alltime
-    maxElitar = min(maxElitar, (int)hallOfFame.size());
-    for (int i = 0; i < maxElitar; i++) {
-        toReproduction.push_back(hallOfFame[hallOfFame.size() - 1 - i]);
-    }
-    //pick best from this gen and save
-    auto elitar = *min_element(evaluation.begin(), evaluation.end(), compMakeSpan);
-    hallOfFame.push_back(elitar.first);
-
-    auto worst = *max_element(evaluation.begin(), evaluation.end(), compMakeSpan);
-    for (auto& genotype : evaluation) {
-        genotype.second = fiit(5000, genotype.second);
-    }
-
-    auto indexs = roulette(reproduction, evaluation);
+    auto indexs = roulette(REPRODUCTION, population);
     for (int& i : indexs) {
-        toReproduction.push_back(evaluation[i].first);
+        toReproduction.push_back(population[i].first);
     }
-    auto noise = grasp(data);
-    shuffle(noise.begin(), noise.end(), default_random_engine(time(0)));
-    toReproduction.push_back(noise);
-    //reproduce crossover mutate
-    for (auto& i : population) {
+    for (auto i : hallOfFame) {
+        toReproduction.push_back(i.first);
+    }
+
+    for (int i = 0; i < CHILDS;i++) {
         int g1, g2;
         g1 = rand() % toReproduction.size();
         g2 = rand() % toReproduction.size();
-        auto childs = crossover(toReproduction[g1], toReproduction[g2]);
-        auto nextGen = childs.second;
-        if (rand() % 2 == 0) {
-            auto nextGen = childs.first;
-            repair(nextGen, CUTOFF, MACHINES);
-            for (int i = 0; i < nextGen.size(); i++)
-                if (((rand() % 1001) / 1000) < mutationChance) {
-                    mutate(nextGen);
-                }
-            i = nextGen;
+        auto nextGen = crossover(toReproduction[g1], toReproduction[g2]);
+        repair(nextGen, CUTOFF, MACHINES);
+        pair<vector<int>, int> evaluated(nextGen, evalFenotype(data, nextGen));
+        population.push_back(evaluated);
+    }
+
+    for (auto& evaluation : population) {
+        auto& genotype = evaluation.first;
+        auto& fenotype = evaluation.second;
+
+        for (int i = 0; i < POSSIBLEMUTATIONS; i++) {
+            if ((rand() / RAND_MAX) < MUTATIONCHANCE) {
+                mutate(genotype);
+            }
+            fenotype = evalFenotype(data, genotype);
         }
+    }
+
+    sort(population.begin(), population.end(), compMakeSpan);
+
+    int toRemove = population.size() - SIZE;
+    for (int i = 0; i < toRemove; i++) {
+        population.pop_back();
+    }
+
+    auto elitar = *min_element(population.begin(), population.end(), compMakeSpan);
+    hallOfFame.push_back(elitar);
+
+    sort(hallOfFame.begin(), hallOfFame.end(), compMakeSpan);
+
+    toRemove = hallOfFame.size() - MAXELITAR;
+    for (int i = 0; i < toRemove; i++) {
+        hallOfFame.pop_back();
     }
 }
