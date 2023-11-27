@@ -18,9 +18,19 @@ using namespace std;
 int MACHINES = -1;
 int JOBS = -1;
 int CUTOFF = -1;
-int DURATION = 9;
+
+int DURATION = 180;
 bool DEBUG = 0;
-int K=1;
+bool LOG = 0;
+char NAME[100];
+
+int SIZE = 100;
+int REPRODUCTION = 30;
+double MUTATIONCHANCE = .02;
+int MAXELITAR = 3;
+int CHILDS = 12;
+int POSSIBLEMUTATIONS = 1;
+
 chrono::duration<long long, nano> TIME_MAX_NS;
 
 vector<string> splitStringBySpaces(const string& s);
@@ -59,22 +69,35 @@ bool compAddTime(vector<int>& a, vector<int>& b) {
     return a[4] < b[4];
 }
 
+bool compMakeSpan(pair<vector<int>, int>& a, pair<vector<int>, int>& b) {
+    return a.second < b.second;
+}
 
 int main(int argc, char** argv) //format [O | T] file [path] truncate [int] k[int] time(s)[int]
 {
-    int duration, k;
+    int duration;
     srand(time(NULL));
+    strcpy(NAME, argv[2]);
     if (argc == 4) {
-        k = K;
         duration = DURATION;
     }
     else if (argc == 6) {
-        k = stoi(argv[4]);
-        duration = stoi(argv[5]);
+        duration = stoi(argv[4]);
+        LOG = stoi(argv[5]);
+    }
+    else if (argc == 12){
+        duration = stoi(argv[4]);
+        LOG = stoi(argv[5]);
+        SIZE = stoi(argv[6]);
+        REPRODUCTION = stoi(argv[7]);
+        MUTATIONCHANCE = stod(argv[8]);
+        MAXELITAR = stoi(argv[9]);
+        CHILDS = stoi(argv[10]);
+        POSSIBLEMUTATIONS = stoi(argv[11]);
     }
     else {
-        printf("format [O | T] file [path] truncate [int] k [int] time(s)[int+]\n");
-        return(0);
+        printf("format [O | T] file [path] truncate [int]\n");
+        exit(0);
     }
 
     long long int cutoff = strtoll(argv[3], NULL, 10);
@@ -82,20 +105,16 @@ int main(int argc, char** argv) //format [O | T] file [path] truncate [int] k[in
     string format = argv[1];
 
 
-    TIME_MAX_NS = std::chrono::seconds{ duration };
+    TIME_MAX_NS = std::chrono::seconds{duration};
 
 
-    if (cutoff >= -1 && !fileName.empty() && (format == "O" || format == "T") && k >= 1)
-    {
-        K = k;
-        solution(format, fileName, cutoff);
-
-    }
-    else
+    if (!(cutoff >= -1 && !fileName.empty() && (format == "O" || format == "T")))
     {
         cout << "Invalid arguments" << endl;
         exit(1);
     }
+
+    solution(format, fileName, cutoff);
 
 }
 
@@ -256,11 +275,11 @@ void parseData(vector<vector<vector<int>>>& data) {
 vector<int> initSubject(vector<vector<vector<int>>> data) {
     vector<int> queue;
 
-    for (int i=0; i < CUTOFF; i++) {
+    for (int i = 0; i < CUTOFF; i++) {
         for (int j = 0; j < MACHINES; j++)
             queue.push_back(i);
     }
-    shuffle(queue.begin(), queue.end(), default_random_engine());
+    shuffle(queue.begin(), queue.end(), default_random_engine(time(0)));
     return queue;
 }
 
@@ -303,7 +322,7 @@ vector<int> roulette(int n, vector<pair<vector<int>, int>> population) {
     vector<int> choosen;
     double sum = 0;
     for (auto& i : population) {
-        sum += 1.0/i.second;
+        sum += 1.0 / i.second;
     }
 
     for (int i = 0; i < n; i++) {
@@ -394,28 +413,35 @@ vector<int> crossover(vector<int> mother, vector<int> father) {
     return s1;
 }
 
-
-int SIZE = 200;
-int REPRODUCTION = 20;
-double MUTATIONCHANCE = .05;
-int MAXELITAR = 5;
-int CHILDS = 65;
-int POSSIBLEMUTATIONS = 1;
-
 void GA(vector<vector<vector<int>>> data) {
 
     vector<pair<vector<int>, int>> population = initPopulation(data, SIZE);
     vector<pair<vector<int>, int>> hallOfFame;
-    for (int i = 1; i <= 500; i++) {
-        _GA(data, population, hallOfFame);
-        if(DEBUG)
-            printf("%d \n", population[0].second);
-    }
-    repr(buildSolution(data, hallOfFame[0].first));
-}
 
-bool compMakeSpan(pair<vector<int>, int>& a, pair<vector<int>, int>& b) {
-    return a.second < b.second;
+    const auto start = chrono::high_resolution_clock::now();
+    int iterations = 0;
+
+    while(1){
+        iterations++;
+        _GA(data, population, hallOfFame);
+
+        auto int_ns = chrono::duration_cast<std::chrono::nanoseconds>(chrono::high_resolution_clock::now() - start);
+        if(LOG){
+            //time;tasks;machines;worktime;name;iteration
+            printf("%d;", hallOfFame[0].second);
+            printf("%d;", CUTOFF);
+            printf("%d;", MACHINES);
+            printf("%f;", chrono::duration_cast<chrono::milliseconds>(int_ns).count()/1000.0);
+            printf("%s;", NAME);
+            printf("%d\n", iterations);
+        }
+
+        if (int_ns > TIME_MAX_NS) {
+            break;
+        }
+    }
+    if(!LOG)
+        repr(buildSolution(data, hallOfFame[0].first));
 }
 
 void _GA(vector<vector<vector<int>>> data, vector<pair<vector<int>, int>>& population, vector<pair<vector<int>, int>>& hallOfFame) {
@@ -429,7 +455,7 @@ void _GA(vector<vector<vector<int>>> data, vector<pair<vector<int>, int>>& popul
         toReproduction.push_back(i.first);
     }
 
-    for (int i = 0; i < CHILDS;i++) {
+    for (int i = 0; i < CHILDS; i++) {
         int g1, g2;
         g1 = rand() % toReproduction.size();
         g2 = rand() % toReproduction.size();
