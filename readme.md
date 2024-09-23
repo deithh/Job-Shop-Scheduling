@@ -1,5 +1,5 @@
 # Job Shop Scheduling
-This project is a C++ application designed to solve optimization problems using a Greedy Randomized Adaptive Search Procedure (GRASP) approach. The program supports different problem formats, such as Beasley and Taillard, and gives users control over various parameters, including the number of tasks to consider, the randomness factor, and the computation time. The core algorithm iteratively improves the solution by combining greedy heuristics with randomization, striving to find high-quality solutions efficiently. The best solution found during execution is then output to the console.
+This project is a C++ application designed to solve optimization problems using a Greedy Randomized Adaptive Search Procedure (GRASP) approach. The program supports different problem formats, such as Beasley and Taillard, and gives users control over various parameters, including the number of tasks to consider, the randomness factor, and the computation time. The core algorithm iteratively improves the solution by combining greedy heuristics with randomization, striving to find high-quality solutions efficiently. The best solution found during execution is then output to the console. There is also tester and tuner script written in python.
 
 ## Problem instances and format description  
 https://people.brunel.ac.uk/~mastjjb/jeb/orlib/files/jobshop1.txt  
